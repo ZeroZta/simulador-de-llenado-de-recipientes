@@ -1,0 +1,10 @@
+{
+  "name": "llenado",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.js",
+    "check": "node --check src/geometry/profile.js && node --check src/geometry/editor.js && node --check src/math/parser.js && node --check src/math/expressions.js && node --check src/physics/model.js && node --check src/storage.js && node --check src/ui/app.js && node --check src/ui/charts.js && node --check src/ui/clean-view.js && node --check src/ui/formula-viewer.js && node --check src/ui/templates.js && node --check src/ui/cartesian-editor.js"
+  }
+}

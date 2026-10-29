@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#102a43">
+  <meta name="description" content="Simulador educativo de llenado de recipientes con física y geometría en tiempo real.">
+  <title>Llenado · Simulador de recipientes</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">LABORATORIO DE GEOMETRÍA Y CÁLCULO</p>
+      <h1>Llenado · Simulador de recipientes</h1>
+    </div>
+    <div class="offline"><span></span> Funciona sin conexión</div>
+  </header>
+
+  <main>
+    <section class="intro">
+      <div>
+        <h2>Diseña en el plano cartesiano y visualiza el llenado físico</h2>
+        <p>Edita los vértices de las paredes. Debajo verás las <strong>fórmulas exactas del recipiente</strong> y las <strong>gráficas analíticas</strong> en tiempo real.</p>
+      </div>
+      <div class="actions library-actions">
+        <label for="templateSelect" class="sr-only">Plantillas de figuras</label>
+        <select id="templateSelect" aria-label="Plantillas predefinidas">
+          <option value="">＋ Cargar plantilla…</option>
+        </select>
+        <button id="exportBtn" class="quiet" title="Descargar diseño en formato JSON">Exportar JSON</button>
+        <button id="importBtn" class="quiet" title="Importar archivo JSON de diseño">Importar JSON</button>
+        <input type="file" id="importInput" accept=".json,application/json" style="display:none" aria-label="Seleccionar archivo JSON">
+        <select id="savedDesignsSelect" aria-label="Biblioteca de diseños guardados">
+          <option value="">📂 Biblioteca local…</option>
+        </select>
+        <button id="saveDesignBtn" class="quiet" title="Guardar diseño actual en IndexedDB">💾 Guardar</button>
+        <button id="deleteDesignBtn" class="quiet danger" title="Eliminar diseño seleccionado" style="display:none">🗑</button>
+      </div>
+    </section>
+
+    <div id="notice" class="notice" role="status" aria-live="polite"></div>
+
+    <!-- ZONA PRINCIPAL DE TRABAJO (EDITOR CARTESIANO + VISTA LIMPIA) -->
+    <div class="dual-stage-layout">
+      <!-- PANEL 1: EDITOR CARTESIANO -->
+      <section class="card editor-card">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">01 · PLANO CARTESIANO</p>
+            <h2>Geometría del Perfil [x, y]</h2>
+          </div>
+          <button id="addRowBtn" class="icon-button" aria-label="Agregar nivel">＋ Nivel</button>
+        </div>
+
+        <div class="editor-tools" role="toolbar" aria-label="Herramientas del plano">
+          <button id="toolEdit" type="button" aria-pressed="true">Editar puntos</button>
+          <button id="toolInsert" type="button" aria-pressed="false">Insertar nivel</button>
+          <button id="toolPan" type="button" aria-pressed="false">Desplazar</button>
+          <label class="toggle-control"><input id="lockViewMode" type="checkbox" checked> <strong>Vista fija</strong></label><label class="toggle-control"><input id="symmetryMode" type="checkbox" checked> Simetría</label>
+          <label class="toggle-control"><input id="snapGrid" type="checkbox" checked> Cuadrícula</label>
+          <button id="undoBtn" type="button" title="Deshacer" disabled>↶</button>
+          <button id="redoBtn" type="button" title="Rehacer" disabled>↷</button>
+          <span class="tool-spacer"></span>
+          <button id="zoomOut" type="button">−</button>
+          <button id="zoomIn" type="button">＋</button>
+          <button id="resetView" type="button">1:1</button>
+        </div>
+
+        <div class="profile-stage">
+          <svg id="profileSvg" viewBox="0 0 420 360" role="img" aria-label="Plano cartesiano interactivo">
+            <g id="profileGrid"></g>
+            <path id="liquidShape"/>
+            <line id="liquidLine"/>
+            <path id="leftWall"/>
+            <path id="rightWall"/>
+            <g id="pointHandles"></g>
+          </svg>
+        </div>
+        <p id="coordinateReadout" class="coordinate-readout" aria-live="polite">Cursor: —</p>
+
+        <!-- Tabla colapsable con los valores numéricos exactos -->
+        <details class="points-accordion">
+          <summary>Ver / editar coordenadas numéricas de niveles</summary>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>y (m)</th>
+                  <th>x izq (m)</th>
+                  <th>x der (m)</th>
+                  <th>m izq</th>
+                  <th>m der</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="pointRows"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <!-- PANEL 2: RECIPIENTE EN LIMPIO (SIN RAYAS DE GRÁFICA) -->
+      <section class="card clean-card">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">02 · RECIPIENTE EN LIMPIO</p>
+            <h2>Simulación Física del Recipiente</h2>
+          </div>
+        </div>
+        <p class="hint">Recipiente extruido en 3D/vista limpia dependiente en tiempo real de tu gráfico cartesiano.</p>
+        
+        <div class="clean-stage">
+          <svg id="cleanVesselSvg" viewBox="0 0 360 300" role="img" aria-label="Vista limpia del recipiente"></svg>
+        </div>
+
+        <!-- Parámetros de simulación física -->
+        <div class="controls-row">
+          <div class="field-compact">
+            <label for="depth">Profundidad (d)</label>
+            <div class="input-unit"><input id="depth" type="number" min="0.001" step="0.05" value="0.5"><span>m</span></div>
+          </div>
+          <div class="field-compact">
+            <label for="flow">Caudal (Q)</label>
+            <div class="input-unit"><input id="flow" type="number" min="0.00001" step="0.0001" value="0.0005"><span>m³/s</span></div>
+          </div>
+          <div class="field-compact">
+            <label for="initialVolume">Volumen Inicial</label>
+            <div class="input-unit"><input id="initialVolume" type="number" min="0" step="0.001" value="0"><span>m³</span></div>
+          </div>
+        </div>
+
+        <div class="simulation-controls">
+          <button id="startBtn" class="primary" aria-label="Iniciar simulación">▶ Iniciar</button>
+          <button id="resetBtn" class="quiet" aria-label="Restablecer simulación">↺ Restablecer</button>
+        </div>
+        <div class="range-box">
+          <label class="range-label" for="timeRange">
+            <span>Avance de tiempo</span>
+            <strong id="timeReadout">0.00 s</strong>
+          </label>
+          <input id="timeRange" type="range" min="0" max="100" value="0" step="0.05">
+        </div>
+      </section>
+    </div>
+
+    <!-- TARJETAS DE RESULTADOS NUMÉRICOS -->
+    <section class="metrics" aria-label="Resultados de la simulación">
+      <article class="metric">
+        <span>Capacidad total</span>
+        <strong id="capacityValue">—</strong>
+        <small>m³</small>
+      </article>
+      <article class="metric">
+        <span>Volumen de agua</span>
+        <strong id="volumeValue">—</strong>
+        <small>m³</small>
+      </article>
+      <article class="metric">
+        <span>Nivel de altura (h)</span>
+        <strong id="heightValue">—</strong>
+        <small>m</small>
+      </article>
+      <article class="metric">
+        <span>Tiempo de llenado</span>
+        <strong id="fillTimeValue">—</strong>
+        <small>s</small>
+      </article>
+    </section>
+
+    <!-- FÓRMULAS REALES DEL RECIPIENTE -->
+    <section class="card formulas-card">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">03 · MODELO MATEMÁTICO REAL</p>
+          <h2>Fórmulas y Ecuaciones del Recipiente Dibujado</h2>
+        </div>
+      </div>
+      <p class="hint">Ecuaciones analíticas deducidas automáticamente a partir de los puntos trazados en el plano cartesiano.</p>
+      <div id="formulaBreakdownContainer"></div>
+    </section>
+
+    <!-- GRÁFICAS ANALÍTICAS CARTESIANAS -->
+    <section class="card charts-card">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">04 · ANÁLISIS DE CURVAS</p>
+          <h2>Gráficas Matemáticas y Dinámica de Llenado</h2>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-panel">
+          <h3>Altura frente a Tiempo · h(t)</h3>
+          <svg id="heightChart" viewBox="0 0 360 190" role="img" aria-label="Gráfica altura frente a tiempo"></svg>
+        </div>
+        <div class="chart-panel">
+          <h3>Volumen frente a Tiempo · V(t)</h3>
+          <svg id="volumeChart" viewBox="0 0 360 190" role="img" aria-label="Gráfica volumen frente a tiempo"></svg>
+        </div>
+        <div class="chart-panel">
+          <h3>Área transversal frente a Altura · A(y)</h3>
+          <svg id="areaChart" viewBox="0 0 360 190" role="img" aria-label="Gráfica área frente a altura"></svg>
+        </div>
+        <div class="chart-panel">
+          <h3>Ancho de la sección frente a Altura · w(y)</h3>
+          <svg id="widthChart" viewBox="0 0 360 190" role="img" aria-label="Gráfica anchura frente a altura"></svg>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Laboratorio de Geometría y Cálculo · Perfil Extruido · Cálculo exacto en tiempo real.
+  </footer>
+
+  <script type="module" src="src/ui/app.js"></script>
+</body>
+</html>
